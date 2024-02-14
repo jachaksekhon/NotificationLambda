@@ -32,7 +32,12 @@ public class NotificationLambda implements RequestHandler<Object, String> {
 
     public String handleRequest(Object input, Context context) {
 
-//        AttributeValue submittedGenre = tech;
+        Map<String, Object> inputMap = (Map<String, Object>) input;
+
+        String category = (String) inputMap.get("category");
+
+
+        System.out.println("Category: " + category);
 
         DynamoDbClient client = DynamoDbClient.builder()
                 .region(Region.US_WEST_2)
@@ -50,8 +55,8 @@ public class NotificationLambda implements RequestHandler<Object, String> {
 
             for (Map<String, AttributeValue> item : response.items()) {
 
-                addEmailRecipient(item, emailRecipients, "tech");
-                addPhoneRecipient(item, phoneRecipients, "tech");
+                addEmailRecipient(item, emailRecipients, category);
+                addPhoneRecipient(item, phoneRecipients, category);
 
             }
 
@@ -72,8 +77,9 @@ public class NotificationLambda implements RequestHandler<Object, String> {
 
     private void sendEmailNotifications(List<String> recipients) {
         String SUBJECT = "New Blog Posted!";
-        String HTML_BODY = "<p>Your email body goes here.</p>";
-        String TEXT_BODY = "Your email body goes here.";
+        String HTML_BODY = "You can find the blog <a href=\"https://master.d3rmuxe1kj9gm3.amplifyapp.com/\">here</a>.</p>";
+        String TEXT_BODY = "You can find the blog at: https://master.d3rmuxe1kj9gm3.amplifyapp.com/";
+
 
         // Create an SES client
         SesClient client = SesClient.builder()
@@ -110,7 +116,7 @@ public class NotificationLambda implements RequestHandler<Object, String> {
             com.twilio.rest.api.v2010.account.Message message = com.twilio.rest.api.v2010.account.Message.creator(
                     new PhoneNumber(recipient),
                     new PhoneNumber(twilioPhoneNumber),
-                    "Hello from Twilio!")
+                    "A New blog has been posted! You can find the blog at: https://master.d3rmuxe1kj9gm3.amplifyapp.com/")
                     .create();
         }
 
