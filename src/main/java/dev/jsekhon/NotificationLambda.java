@@ -2,6 +2,7 @@ package dev.jsekhon;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.regions.Region;
@@ -9,8 +10,10 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 import com.twilio.Twilio;
-import com.twilio.rest.api.v2010.account.Message;
 import com.twilio.type.PhoneNumber;
+
+import software.amazon.awssdk.services.ses.SesClient;
+import software.amazon.awssdk.services.ses.model.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +25,7 @@ public class NotificationLambda implements RequestHandler<Object, String> {
     private static final String DYNAMODB_TABLE_NAME = System.getenv("USER_DB_AWS");
     private static final String EMAIL_NOTIFICATION_COLUMN = System.getenv("emailNotiColumn");
     private static final String PHONE_NOTIFICATION_COLUMN = System.getenv("phoneNotiColumn");
-
+    private static final String AWS_SENDER_EMAIL = System.getenv("AWS_SENDER_EMAIL");
     private static final String Account_SID = System.getenv("TWILIO_ACCOUNT_SID");
     private static final String Auth_Token = System.getenv("TWILIO_AUTH_TOKEN");
     private static final String twilioPhoneNumber = System.getenv("TWILIO_PHN_NUM");
@@ -44,15 +47,17 @@ public class NotificationLambda implements RequestHandler<Object, String> {
                     .build();
 
             ScanResponse response = client.scan(scanRequest);
+
             for (Map<String, AttributeValue> item : response.items()) {
 
                 addEmailRecipient(item, emailRecipients, "tech");
                 addPhoneRecipient(item, phoneRecipients, "tech");
 
-                sendEmailNotifications(emailRecipients);
-                sendSMSNotifications(phoneRecipients);
-
             }
+
+            sendEmailNotifications(emailRecipients);
+            sendSMSNotifications(phoneRecipients);
+
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
@@ -66,44 +71,43 @@ public class NotificationLambda implements RequestHandler<Object, String> {
     }
 
     private void sendEmailNotifications(List<String> recipients) {
-//        String FROM = "blogrblogs@gmail.com";
-//        String SUBJECT = "New Blog Posted!";
-//        String HTML_BODY = "<p>Your email body goes here.</p>";
-//        String TEXT_BODY = "Your email body goes here.";
-//
-//        // Create an SES client
-//        SesClient client = SesClient.builder()
-//                .region(Region.US_WEST_1)
-//                .credentialsProvider(DefaultCredentialsProvider.create())
-//                .build();
-//
-//        // Create the email request
-//        SendEmailRequest request = SendEmailRequest.builder()
-//                .destination(Destination.builder().toAddresses(recipients).build())
-//                .message(Message.builder()
-//                        .body(Body.builder()
-//                                .html(Content.builder().data(HTML_BODY).build())
-//                                .text(Content.builder().data(TEXT_BODY).build())
-//                                .build())
-//                        .subject(Content.builder().data(SUBJECT).build())
-//                        .build())
-//                .source(FROM)
-//                .build();
-//
-//        // Send the email
-//        try {
-//            client.sendEmail(request);
-//            System.out.println("Email sent successfully.");
-//        } catch (SesException e) {
-//            System.out.println("Email sending failed: " + e.getMessage());
-//        }
+        String SUBJECT = "New Blog Posted!";
+        String HTML_BODY = "<p>Your email body goes here.</p>";
+        String TEXT_BODY = "Your email body goes here.";
+
+        // Create an SES client
+        SesClient client = SesClient.builder()
+                .region(Region.US_WEST_1)
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .build();
+
+        // Create the email request
+        SendEmailRequest request = SendEmailRequest.builder()
+                .destination(Destination.builder().toAddresses(recipients).build())
+                .message(Message.builder()
+                        .body(Body.builder()
+                                .html(Content.builder().data(HTML_BODY).build())
+                                .text(Content.builder().data(TEXT_BODY).build())
+                                .build())
+                        .subject(Content.builder().data(SUBJECT).build())
+                        .build())
+                .source(AWS_SENDER_EMAIL)
+                .build();
+
+        // Send the email
+        try {
+            client.sendEmail(request);
+            System.out.println("Email sent successfully.");
+        } catch (SesException e) {
+            System.out.println("Email sending failed: " + e.getMessage());
+        }
     }
 
     private void sendSMSNotifications(List<String> recipients) {
         Twilio.init(Account_SID, Auth_Token);
 
         for (String recipient : recipients) {
-            Message message = Message.creator(
+            com.twilio.rest.api.v2010.account.Message message = com.twilio.rest.api.v2010.account.Message.creator(
                     new PhoneNumber(recipient),
                     new PhoneNumber(twilioPhoneNumber),
                     "Hello from Twilio!")
